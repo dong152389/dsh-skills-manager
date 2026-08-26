@@ -702,8 +702,8 @@ function makeApi(ctx) {
     });
   };
   return {
-    catalog: (args) => call('catalog', args),
-    detail: (args) => call('detail', args),
+    catalog: (payload) => call('catalog', { payload: payload || {} }),
+    detail: (payload) => call('detail', { payload: payload || {} }),
   };
 }
 
