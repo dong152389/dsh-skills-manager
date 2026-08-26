@@ -1,4 +1,18 @@
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
+import { homedir } from 'node:os';
+import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { dirname, join, basename, resolve } from 'node:path';
+
+const PROJECT_TARGETS = new Set(['project-dsh', 'project-agents']);
+const GLOBAL_TARGETS = new Set(['user-dsh', 'user-agents']);
+const EDITABLE_SOURCES = new Set([
+  'project-dsh',
+  'project-agents',
+  'user-dsh',
+  'user-agents',
+  'custom',
+]);
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 function stringOrEmpty(value) {
   return typeof value === 'string' ? value : '';
@@ -62,8 +76,162 @@ function lookupOptions(args) {
   return cwd ? { cwd } : {};
 }
 
+function isMissing(error) {
+  return error && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+}
+
+async function findProjectRoot(cwd) {
+  let current = resolve(cwd || process.cwd());
+  while (true) {
+    try {
+      await access(join(current, '.git'));
+      return current;
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+    }
+    const parent = dirname(current);
+    if (parent === current) return resolve(cwd || process.cwd());
+    current = parent;
+  }
+}
+
+function dshHome() {
+  const configured = optionalString(process.env.DSH_HOME);
+  return configured ? resolve(configured) : join(homedir(), '.dsh');
+}
+
+function agentsHome() {
+  const configured = optionalString(process.env.DSH_AGENTS_HOME);
+  return configured ? resolve(configured) : join(homedir(), '.agents');
+}
+
+async function targetDirectory(target, cwd) {
+  const normalizedTarget = optionalString(target) || (cwd ? 'project-agents' : 'user-dsh');
+  if (PROJECT_TARGETS.has(normalizedTarget)) {
+    const projectRoot = await findProjectRoot(cwd);
+    return join(projectRoot, normalizedTarget === 'project-dsh' ? '.dsh' : '.agents', 'skills');
+  }
+  if (GLOBAL_TARGETS.has(normalizedTarget)) {
+    return join(normalizedTarget === 'user-dsh' ? dshHome() : agentsHome(), 'skills');
+  }
+  throw new Error('不支持的上传目标。');
+}
+
+function uploadFileName(value) {
+  const fileName = optionalString(value);
+  if (!fileName || basename(fileName) !== fileName) {
+    throw new Error('只能上传根目录下的 Markdown Skill 文件。');
+  }
+  if (!fileName.toLowerCase().endsWith('.md')) throw new Error('Skill 文件必须使用 .md 扩展名。');
+  return fileName;
+}
+
+function parseUploadFrontmatter(content) {
+  const header = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(content);
+  if (!header) throw new Error('Skill 文件缺少有效的 YAML frontmatter。');
+  const field = (name) => {
+    const line = header[1].split(/\r?\n/).find((item) => new RegExp(`^${name}\\s*:`).test(item));
+    if (!line) return '';
+    return line.slice(line.indexOf(':') + 1).trim().replace(/^("([\s\S]*)"|'([\s\S]*)')$/, '$2$3');
+  };
+  const name = field('name');
+  const description = field('description');
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+    throw new Error('Skill 的 name 必须是 kebab-case，例如：web-search。');
+  }
+  if (!description) throw new Error('Skill frontmatter 必须包含 description。');
+  return { name, description };
+}
+
+function editableSkill(skill) {
+  return Boolean(skill && skill.path && EDITABLE_SOURCES.has(skill.source));
+}
+
+function updateInvocationFrontmatter(content, field, enabled) {
+  const header = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(content);
+  if (!header) throw new Error('Skill 文件缺少有效的 YAML frontmatter。');
+  const newline = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = header[1].split(/\r?\n/).filter((line) => !new RegExp(`^${field}\\s*:`).test(line));
+  if (!enabled) lines.push(`${field}: ${field === 'disable-model-invocation' ? 'true' : 'false'}`);
+  const frontmatter = lines.join(newline);
+  const suffix = content.slice(header[0].length);
+  return `---${newline}${frontmatter}${newline}---${suffix ? newline + suffix : ''}`;
+}
+
+function optionalFs(ctx) {
+  try {
+    const fs = ctx.get('fs');
+    return fs && typeof fs.resolve === 'function' && typeof fs.stat === 'function'
+      && typeof fs.readText === 'function' && typeof fs.writeText === 'function'
+      ? fs
+      : undefined;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+async function writeManagedText(ctx, path, content, expected) {
+  const fs = optionalFs(ctx);
+  if (fs) {
+    const target = await fs.resolve(path);
+    const result = await fs.writeText(target, content, expected);
+    return { target, version: result && result.version };
+  }
+  await mkdir(dirname(path), { recursive: true });
+  if (expected && expected.kind === 'createIfAbsent') {
+    try {
+      await stat(path);
+      throw new Error(`目标文件已存在：${path}`);
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+    }
+  }
+  if (expected && expected.kind === 'replaceIfVersion') {
+    let current;
+    try {
+      current = await stat(path);
+    } catch (error) {
+      if (isMissing(error)) throw new Error('Skill 文件已被删除，请刷新目录后重试。');
+      throw error;
+    }
+    const currentVersion = `${current.mtimeMs}:${current.size}`;
+    if (currentVersion !== expected.version) throw new Error('Skill 文件刚刚发生变化，请刷新目录后重试。');
+  }
+  await writeFile(path, content, 'utf8');
+  const after = await stat(path);
+  return { target: null, version: `${after.mtimeMs}:${after.size}` };
+}
+
+async function readManagedText(ctx, path) {
+  const fs = optionalFs(ctx);
+  if (fs) {
+    const target = await fs.resolve(path);
+    const info = await fs.stat(target);
+    if (!info || info.type !== 'file') throw new Error('Skill 文件不存在或不是普通文件。');
+    return { content: await fs.readText(target), target, version: info.version };
+  }
+  const info = await stat(path);
+  return { content: await readFile(path, 'utf8'), target: null, version: `${info.mtimeMs}:${info.size}` };
+}
+
+function notifySkillChange(ctx, target, version) {
+  if (!ctx || typeof ctx.emit !== 'function') return;
+  try {
+    if (target) {
+      ctx.emit('fs/observed', target, { kind: 'present', version }, { name: 'write' });
+    }
+  } catch (_error) {
+    // The filesystem provider watcher remains the fallback invalidation path.
+  }
+  try {
+    ctx.emit('skills/change');
+  } catch (_error) {
+    // Older DSH profiles may not declare this optional event.
+  }
+}
+
 function markRemoteMethods(service) {
-  for (const method of ['catalog', 'detail']) {
+  for (const method of ['catalog', 'detail', 'upload', 'toggle']) {
     const initializers = [];
     const context = {
       name: method,
@@ -97,6 +265,49 @@ class SkillsManagerService extends TypertRemoteService {
     if (!name) return null;
     const skill = await this.skills.get(name, lookupOptions(payload));
     return definitionOf(skill);
+  }
+
+  async upload(payload) {
+    const input = payload && typeof payload === 'object' ? payload : {};
+    const content = typeof input.content === 'string' ? input.content : '';
+    if (!content) throw new Error('上传内容不能为空。');
+    if (Buffer.byteLength(content, 'utf8') > MAX_UPLOAD_BYTES) throw new Error('Skill 文件不能超过 5 MB。');
+    const fileName = uploadFileName(input.fileName);
+    const metadata = parseUploadFrontmatter(content);
+    const cwd = optionalString(input.cwd);
+    const directory = await targetDirectory(input.target, cwd);
+    const path = join(directory, fileName);
+    const written = await writeManagedText(this.ctx, path, content, { kind: 'createIfAbsent' });
+    notifySkillChange(this.ctx, written.target, written.version);
+    return {
+      name: metadata.name,
+      description: metadata.description,
+      path,
+      target: input.target || (cwd ? 'project-agents' : 'user-dsh'),
+    };
+  }
+
+  async toggle(payload) {
+    const input = payload && typeof payload === 'object' ? payload : {};
+    const name = optionalString(input.name);
+    const field = input.field === 'model' ? 'disable-model-invocation' : input.field === 'user' ? 'user-invocable' : '';
+    if (!name || !field || typeof input.enabled !== 'boolean') throw new Error('启用设置参数无效。');
+    const options = lookupOptions(input);
+    const skill = await this.skills.get(name, options);
+    if (!skill) return null;
+    if (!editableSkill(skill)) throw new Error('该 Skill 来自只读来源，不能在这里修改。');
+    const original = await readManagedText(this.ctx, skill.path);
+    const updated = updateInvocationFrontmatter(original.content, field, input.enabled);
+    if (updated === original.content) return definitionOf(skill);
+    const expected = original.version === undefined ? undefined : { kind: 'replaceIfVersion', version: original.version };
+    const written = await writeManagedText(this.ctx, skill.path, updated, expected);
+    notifySkillChange(this.ctx, written.target, written.version);
+    const changed = await this.skills.get(name, options);
+    const result = definitionOf(changed || skill);
+    result.invocation = Object.assign({}, result.invocation, field === 'user-invocable'
+      ? { userInvocable: input.enabled }
+      : { modelInvocable: input.enabled });
+    return result;
   }
 }
 
@@ -136,6 +347,8 @@ export function apply(ctx) {
     const dispose = registerDescriptors(ctx, typert, [
       { namespace: 'skillsManager', method: 'catalog', parameters: ['payload'] },
       { namespace: 'skillsManager', method: 'detail', parameters: ['payload'] },
+      { namespace: 'skillsManager', method: 'upload', parameters: ['payload'] },
+      { namespace: 'skillsManager', method: 'toggle', parameters: ['payload'] },
     ]);
     ctx.effect(() => dispose, 'dsh-skills-manager: typert descriptors');
   } else {

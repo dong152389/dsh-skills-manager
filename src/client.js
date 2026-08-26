@@ -409,6 +409,8 @@ const css = String.raw`
 .skm-button:disabled { opacity: .56; cursor: not-allowed; }
 .skm-buttonAccent { border-color: var(--skm-accent); color: var(--skm-accent); }
 .skm-buttonIcon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.skm-uploadTarget { flex: 0 1 190px; min-width: 165px; }
+.skm-uploadInput { display: none; }
 @keyframes skm-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .skm-spin { animation: skm-spin 0.85s linear infinite; }
 .skm-status {
@@ -418,6 +420,7 @@ const css = String.raw`
   font-size: 11px;
 }
 .skm-statusError { color: var(--skm-danger); }
+.skm-statusSuccess { color: var(--skm-success, #2f8a68); }
 .skm-workbench {
   display: grid;
   grid-template-columns: minmax(230px, .72fr) minmax(0, 1.28fr);
@@ -529,6 +532,7 @@ const css = String.raw`
   white-space: nowrap;
 }
 .skm-tagAccent { border-color: color-mix(in srgb, var(--skm-accent) 40%, var(--skm-border)); color: var(--skm-accent); }
+.skm-tagDisabled { border-color: color-mix(in srgb, var(--skm-danger) 36%, var(--skm-border)); color: var(--skm-danger); }
 .skm-empty {
   padding: 28px 16px;
   color: var(--skm-muted);
@@ -574,6 +578,58 @@ const css = String.raw`
   border-radius: 8px;
   background: color-mix(in srgb, var(--skm-bg-raised) 66%, transparent);
 }
+.skm-controlPanel {
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid var(--skm-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--skm-bg-raised) 48%, transparent);
+}
+.skm-controlPanel .skm-sectionLabel { margin-bottom: 4px; }
+.skm-controlHint {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--skm-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.skm-toggleList { display: grid; gap: 6px; }
+.skm-toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  border-top: 1px solid var(--skm-border);
+}
+.skm-toggleCopy { min-width: 0; }
+.skm-toggleLabel { display: block; font-size: 12px; font-weight: 700; }
+.skm-toggleDescription { display: block; margin-top: 2px; color: var(--skm-muted); font-size: 10px; }
+.skm-toggleState { display: block; margin-top: 3px; color: var(--skm-muted); font-size: 10px; }
+.skm-toggleButton {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid var(--skm-border-strong);
+  border-radius: 999px;
+  background: var(--skm-bg);
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.skm-toggleButton::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--skm-muted);
+  transition: transform .16s ease, background .16s ease;
+}
+.skm-toggleButtonOn { border-color: var(--skm-accent); background: color-mix(in srgb, var(--skm-accent) 12%, var(--skm-bg)); }
+.skm-toggleButtonOn::after { transform: translateX(17px); background: var(--skm-accent); }
+.skm-toggleButton:disabled { opacity: .56; cursor: not-allowed; }
 .skm-metaItem { min-width: 0; }
 .skm-metaLabel {
   display: block;
@@ -695,6 +751,25 @@ function RefreshIcon({ spinning }) {
   },
     h('path', { d: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8' }),
     h('polyline', { points: '21 3 21 8 16 8' }),
+  );
+}
+
+function UploadIcon() {
+  return h('svg', {
+    className: 'skm-buttonIcon',
+    width: 13,
+    height: 13,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2.2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  },
+    h('path', { d: 'M12 16V4' }),
+    h('polyline', { points: '7 9 12 4 17 9' }),
+    h('path', { d: 'M5 20h14' }),
   );
 }
 
@@ -865,11 +940,32 @@ function SkillRow({ skill, active, onSelect }) {
     h('span', { className: 'skm-listMeta' },
       h('span', { className: 'skm-tag skm-tagAccent' }, sourceLabel(skill.source)),
       h('span', { className: 'skm-tag' }, skill.provider || 'unknown provider'),
+      skill.invocation && !skill.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'model off') : null,
+      skill.invocation && !skill.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'user off') : null,
     ),
   );
 }
 
-function Detail({ summary, detail, status }) {
+function ToggleControl({ label, description, enabled, disabled, onChange }) {
+  return h('div', { className: 'skm-toggleRow' },
+    h('div', { className: 'skm-toggleCopy' },
+      h('span', { className: 'skm-toggleLabel' }, label),
+      h('span', { className: 'skm-toggleDescription' }, description),
+      h('span', { className: 'skm-toggleState' }, enabled ? '已启用' : '已禁用'),
+    ),
+    h('button', {
+      type: 'button',
+      role: 'switch',
+      className: 'skm-toggleButton' + (enabled ? ' skm-toggleButtonOn' : ''),
+      'aria-checked': enabled,
+      'aria-label': `${label}${enabled ? '已启用' : '已禁用'}`,
+      disabled,
+      onClick: () => onChange(!enabled),
+    }),
+  );
+}
+
+function Detail({ summary, detail, status, onToggle, mutationStatus }) {
   if (!summary) {
     return h('div', { className: 'skm-empty skm-detail' },
       h('strong', null, '选择一个 Skill'),
@@ -885,6 +981,9 @@ function Detail({ summary, detail, status }) {
       : '无法加载该 Skill 的正文。';
     return h('div', { className: 'skm-empty skm-detail' }, message);
   }
+  const editable = Boolean(detail.path && ['project-dsh', 'project-agents', 'user-dsh', 'user-agents', 'custom'].indexOf(summary.source) !== -1);
+  const saving = mutationStatus && mutationStatus.status === 'saving';
+  const mutationError = mutationStatus && mutationStatus.status === 'error' ? mutationStatus.message : '';
   return h('article', { className: 'skm-detail' },
     h('div', { className: 'skm-detailEyebrow' }, 'Selected skill'),
     h('h3', { className: 'skm-detailTitle' }, summary.name),
@@ -894,6 +993,30 @@ function Detail({ summary, detail, status }) {
       h('span', { className: 'skm-tag' }, summary.provider || 'unknown provider'),
       summary.invocation && summary.invocation.modelInvocable ? h('span', { className: 'skm-tag' }, 'model-ready') : null,
       summary.invocation && summary.invocation.userInvocable ? h('span', { className: 'skm-tag' }, 'user-ready') : null,
+      summary.invocation && !summary.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'model disabled') : null,
+      summary.invocation && !summary.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'user disabled') : null,
+    ),
+    h('section', { className: 'skm-controlPanel' },
+      h('h4', { className: 'skm-sectionLabel' }, 'Invocation controls'),
+      h('p', { className: 'skm-controlHint' }, editable ? '分别控制模型和用户界面是否可以调用此 Skill。' : '内置或运行时 Skill 来自只读来源，不能在这里修改。'),
+      h('div', { className: 'skm-toggleList' },
+        h(ToggleControl, {
+          label: '模型调用',
+          description: '是否出现在模型可用的 Skill 目录中',
+          enabled: Boolean(summary.invocation && summary.invocation.modelInvocable),
+          disabled: !editable || saving,
+          onChange: (enabled) => onToggle('model', enabled),
+        }),
+        h(ToggleControl, {
+          label: '用户调用',
+          description: '是否允许用户侧命令或显式调用',
+          enabled: Boolean(summary.invocation && summary.invocation.userInvocable),
+          disabled: !editable || saving,
+          onChange: (enabled) => onToggle('user', enabled),
+        }),
+      ),
+      saving ? h('div', { className: 'skm-controlHint', style: { margin: '8px 0 0' } }, '正在保存…') : null,
+      mutationError ? h('div', { className: 'skm-status skm-statusError', style: { margin: '8px 0 0' } }, mutationError) : null,
     ),
     h('div', { className: 'skm-detailMeta' },
       h('div', { className: 'skm-metaItem' },
@@ -948,12 +1071,32 @@ function SkillManagerSection(props) {
   const [catalog, setCatalog] = React.useState({ status: 'loading', complete: true, skills: [], error: '' });
   const [detailStatus, setDetailStatus] = React.useState('idle');
   const [detail, setDetail] = React.useState(null);
+  const [uploadTarget, setUploadTarget] = React.useState('project-agents');
+  const [uploadStatus, setUploadStatus] = React.useState({ status: 'idle', message: '' });
+  const [mutationStatus, setMutationStatus] = React.useState({ status: 'idle', message: '' });
+  const uploadInputRef = React.useRef(null);
 
   const effectiveCwd = workspaceChoice === '__recent__'
     ? recentPath
     : workspaceChoice === '__all__'
       ? ''
       : workspaceChoice;
+
+  const uploadTargetOptions = effectiveCwd
+    ? [
+      { value: 'project-agents', label: '当前工作区 · .agents/skills' },
+      { value: 'project-dsh', label: '当前工作区 · .dsh/skills' },
+    ]
+    : [
+      { value: 'user-dsh', label: '用户目录 · ~/.dsh/skills' },
+      { value: 'user-agents', label: '用户目录 · ~/.agents/skills' },
+    ];
+
+  React.useEffect(() => {
+    if (!uploadTargetOptions.some((option) => option.value === uploadTarget)) {
+      setUploadTarget(uploadTargetOptions[0].value);
+    }
+  }, [effectiveCwd]);
 
   React.useEffect(() => {
     let active = true;
@@ -1023,6 +1166,61 @@ function SkillManagerSection(props) {
     }),
   ];
 
+  const handleUploadFile = (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name || !file.name.toLowerCase().endsWith('.md')) {
+      setUploadStatus({ status: 'error', message: '上传失败：请选择 .md Markdown Skill 文件。' });
+      return;
+    }
+    setUploadStatus({ status: 'uploading', message: `正在上传 ${file.name}…` });
+    const readContent = typeof file.text === 'function'
+      ? file.text()
+      : new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('无法读取所选文件。'));
+        reader.readAsText(file);
+      });
+    Promise.resolve(readContent)
+      .then((content) => api.upload({
+        fileName: file.name,
+        content,
+        target: uploadTarget,
+        ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+      }))
+      .then((result) => {
+        setUploadStatus({ status: 'success', message: `已上传 ${result && result.name ? result.name : file.name}，目录正在刷新。` });
+        setSelectedName(result && result.name ? result.name : selectedName);
+        setRefreshKey((value) => value + 1);
+      })
+      .catch((error) => setUploadStatus({ status: 'error', message: `上传失败：${errorText(error)}` }));
+  };
+
+  const handleToggle = (field, enabled) => {
+    if (!selectedName) return;
+    setMutationStatus({ status: 'saving', message: '' });
+    api.toggle({
+      name: selectedName,
+      field,
+      enabled,
+      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+    }).then((result) => {
+      if (!result) throw new Error('Skill 已不存在，请刷新目录。');
+      if (result.invocation) {
+        setCatalog((previous) => Object.assign({}, previous, {
+          skills: previous.skills.map((skill) => skill.name === selectedName
+            ? Object.assign({}, skill, { invocation: result.invocation })
+            : skill),
+        }));
+        setDetail((previous) => previous ? Object.assign({}, previous, { invocation: result.invocation }) : previous);
+      }
+      setMutationStatus({ status: 'success', message: '' });
+      setRefreshKey((value) => value + 1);
+    }).catch((error) => setMutationStatus({ status: 'error', message: errorText(error) }));
+  };
+
   return h('section', { className: 'skm-panel' },
     h('style', { dangerouslySetInnerHTML: { __html: css } }),
     h('header', { className: 'skm-head' },
@@ -1061,6 +1259,31 @@ function SkillManagerSection(props) {
           alignRight: true,
           style: { flex: '0 1 150px', minWidth: '120px' },
         }),
+        h(CustomSelect, {
+          value: uploadTarget,
+          onChange: setUploadTarget,
+          options: uploadTargetOptions,
+          ariaLabel: '选择上传目标目录',
+          alignRight: true,
+          style: { flex: '0 1 190px', minWidth: '165px' },
+        }),
+        h('input', {
+          ref: uploadInputRef,
+          className: 'skm-uploadInput',
+          type: 'file',
+          accept: '.md,text/markdown',
+          onChange: handleUploadFile,
+        }),
+        h('button', {
+          type: 'button',
+          className: 'skm-button skm-buttonAccent',
+          onClick: () => uploadInputRef.current && uploadInputRef.current.click(),
+          disabled: uploadStatus.status === 'uploading',
+          title: '上传 Markdown Skill',
+        },
+          h(UploadIcon),
+          uploadStatus.status === 'uploading' ? '上传中' : '上传',
+        ),
         h('button', {
           type: 'button',
           className: 'skm-button skm-buttonAccent',
@@ -1106,6 +1329,10 @@ function SkillManagerSection(props) {
     h('div', { className: 'skm-status' + (catalog.status === 'error' || typeof detailStatus === 'string' && detailStatus !== 'idle' && detailStatus !== 'loading' && detailStatus !== 'ready' ? ' skm-statusError' : '') , 'aria-live': 'polite' },
       catalog.status === 'error' ? `目录加载失败：${catalog.error}` : catalog.status === 'loading' ? '正在扫描技能目录…' : catalog.complete ? '目录已完成扫描；技能文件变更后可点击刷新。' : '目录扫描尚未完全收敛，当前结果可用但建议稍后刷新。',
     ),
+    uploadStatus.status !== 'idle' ? h('div', {
+      className: 'skm-status' + (uploadStatus.status === 'error' ? ' skm-statusError' : uploadStatus.status === 'success' ? ' skm-statusSuccess' : ''),
+      'aria-live': 'polite',
+    }, uploadStatus.message) : null,
     h('div', { className: 'skm-workbench' },
       h('div', { className: 'skm-listPane' },
         h('div', { className: 'skm-paneHead' },
@@ -1130,7 +1357,13 @@ function SkillManagerSection(props) {
               onSelect: () => setSelectedName(skill.name),
             }))),
       ),
-      h('div', { className: 'skm-detailPane' }, h(Detail, { summary: selectedSummary, detail, status: detailStatus })),
+      h('div', { className: 'skm-detailPane' }, h(Detail, {
+        summary: selectedSummary,
+        detail,
+        status: detailStatus,
+        mutationStatus,
+        onToggle: handleToggle,
+      })),
     ),
   );
 }
@@ -1150,6 +1383,8 @@ function makeApi(ctx) {
   return {
     catalog: (payload) => call('catalog', { payload: payload || {} }),
     detail: (payload) => call('detail', { payload: payload || {} }),
+    upload: (payload) => call('upload', { payload: payload || {} }),
+    toggle: (payload) => call('toggle', { payload: payload || {} }),
   };
 }
 
