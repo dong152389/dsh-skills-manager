@@ -280,6 +280,25 @@ const css = String.raw`
   left: auto;
   right: 0;
 }
+.skm-selectHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--skm-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--skm-accent) 9%, var(--skm-bg-raised));
+  color: var(--skm-text);
+  font-size: 11px;
+  line-height: 1.35;
+  user-select: none;
+  font-weight: 500;
+}
+.skm-selectHintIcon {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
 @keyframes skm-popIn {
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1106,7 +1125,7 @@ function SearchBox({ value, onChange, placeholder, ariaLabel }) {
   );
 }
 
-function CustomSelect({ value, onChange, options, ariaLabel, alignRight, style }) {
+function CustomSelect({ value, onChange, options, ariaLabel, alignRight, style, menuHint }) {
   const [open, setOpen] = React.useState(false);
   const rootRef = React.useRef(null);
 
@@ -1171,6 +1190,10 @@ function CustomSelect({ value, onChange, options, ariaLabel, alignRight, style }
       role: 'listbox',
       'aria-label': ariaLabel,
     },
+      menuHint ? h('div', { className: 'skm-selectHint' },
+        h('span', { className: 'skm-selectHintIcon', 'aria-hidden': 'true' }, '💡'),
+        h('span', null, menuHint),
+      ) : null,
       options.map((opt) => {
         const isSelected = opt.value === value;
         return h('button', {
@@ -1377,12 +1400,12 @@ function SkillManagerSection(props) {
 
   const resourceTargetOptions = effectiveCwd
     ? [
-      { value: 'project-agents', label: '当前工作区 · .agents/skills' },
-      { value: 'project-dsh', label: '当前工作区 · .dsh/skills' },
+      { value: 'project-agents', label: '当前工作区 · .agents/skills（推荐 · 二选一）' },
+      { value: 'project-dsh', label: '当前工作区 · .dsh/skills（二选一）' },
     ]
     : [
-      { value: 'user-dsh', label: '用户目录 · ~/.dsh/skills' },
-      { value: 'user-agents', label: '用户目录 · ~/.agents/skills' },
+      { value: 'user-agents', label: '用户目录 · ~/.agents/skills（推荐 · 二选一）' },
+      { value: 'user-dsh', label: '用户目录 · ~/.dsh/skills（二选一）' },
     ];
 
   React.useEffect(() => {
@@ -1600,9 +1623,10 @@ function SkillManagerSection(props) {
           value: resourceTarget,
           onChange: setResourceTarget,
           options: resourceTargetOptions,
-          ariaLabel: '选择目标技能目录',
+          ariaLabel: '选择目标技能目录（二选一即可）',
           alignRight: true,
-          style: { flex: '0 1 190px', minWidth: '165px' },
+          menuHint: '提示：二选一即可，均会自动生效',
+          style: { flex: '0 1 270px', minWidth: '220px' },
         }),
         h('input', {
           ref: fileInputRef,
