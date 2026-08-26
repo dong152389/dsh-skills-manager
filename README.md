@@ -7,7 +7,7 @@ DeepSeek Harness 的 Skills 目录管理插件。它把当前 DSH 的 `skills` r
 - **工作区范围**：最近工作区、任意已登记工作区，或全部全局技能。
 - **目录检索**：按名称、描述、provider 与 source 即时过滤。
 - **详情检查器**：显示 invocation 能力、来源、资源基目录、文件路径与完整 Markdown 正文。
-- **上传 Skill**：从设置页上传带 YAML frontmatter 的 `.md` 文件，可选择当前项目的 `.agents/skills` / `.dsh/skills`，或用户级技能目录。
+- **资源目录**：从设置页直接打开当前项目或用户级的 `.agents/skills` / `.dsh/skills` 目录，Skill 文件在资源目录中维护。
 - **启用/禁用**：分别控制模型调用和用户调用；开关会更新 Skill 文件中的 `disable-model-invocation` / `user-invocable` 字段，并自动刷新目录。
 - **可编辑边界**：registry 本身仍是只读运行时数据；只有项目、用户和 custom 文件来源可修改，bundled/runtime 等只读来源会禁用操作。
 - **深浅色主题**：只使用 DSH 的主题变量，设置页保持与宿主视觉一致。
@@ -49,4 +49,4 @@ scripts/build.mjs # 生成两个 lib 文件
 dsh web --dump-config | findstr /i "skills-manager skill-filesystem"
 ```
 
-上传文件需要以 `---` 开始的 YAML frontmatter，并至少包含 kebab-case 的 `name` 与非空 `description`；当前上传入口支持 Markdown Skill 文件，不处理 zip 或二进制资源包。
+Skill 文件需要以 `---` 开始的 YAML frontmatter，并至少包含 kebab-case 的 `name` 与非空 `description`。
