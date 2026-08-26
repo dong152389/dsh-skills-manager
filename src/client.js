@@ -722,14 +722,12 @@ function errorText(error) {
 }
 
 function sourceLabel(source) {
-  if (source === 'project-dsh') return '项目 / .dsh';
-  if (source === 'project-agents') return '项目 / .agents';
-  if (source === 'user-dsh') return '用户 / .dsh';
-  if (source === 'user-agents') return '用户 / .agents';
+  if (source === 'project-dsh' || source === 'project-agents') return '项目';
+  if (source === 'user-dsh' || source === 'user-agents') return '全局';
   if (source === 'runtime') return '运行时';
   if (source === 'bundled') return '内置';
   if (source === 'custom') return '自定义';
-  return source || '未知';
+  return source || '其他';
 }
 
 function scopeLabel(source) {
@@ -953,7 +951,6 @@ function SkillRow({ skill, active, onSelect }) {
     h('span', { className: 'skm-skillName' }, skill.name),
     h('span', { className: 'skm-skillDescription' }, skill.description || '暂无描述'),
     h('span', { className: 'skm-listMeta' },
-      h('span', { className: 'skm-tag skm-tagAccent' }, sourceLabel(skill.source)),
       h('span', { className: 'skm-tag ' + scopeClass(skill.source) }, scopeLabel(skill.source)),
       h('span', { className: 'skm-tag' }, skill.provider || '未知提供方'),
       skill.invocation && !skill.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, '模型禁用') : null,
@@ -1005,7 +1002,6 @@ function Detail({ summary, detail, status, onToggle, mutationStatus }) {
     h('h3', { className: 'skm-detailTitle' }, summary.name),
     h('p', { className: 'skm-detailDescription' }, summary.description || '暂无描述'),
     h('div', { className: 'skm-tagRow', style: { marginTop: '12px' } },
-      h('span', { className: 'skm-tag skm-tagAccent' }, sourceLabel(summary.source)),
       h('span', { className: 'skm-tag ' + scopeClass(summary.source) }, scopeLabel(summary.source)),
       h('span', { className: 'skm-tag' }, summary.provider || '未知提供方'),
       summary.invocation && summary.invocation.modelInvocable ? h('span', { className: 'skm-tag' }, '模型可用') : null,
@@ -1088,7 +1084,7 @@ function SkillManagerSection(props) {
   const [catalog, setCatalog] = React.useState({ status: 'loading', complete: true, skills: [], error: '' });
   const [detailStatus, setDetailStatus] = React.useState('idle');
   const [detail, setDetail] = React.useState(null);
-  const [resourceTarget, setResourceTarget] = React.useState('project-agents');
+  const [resourceTarget, setResourceTarget] = React.useState(recentPath ? 'project-agents' : 'user-agents');
   const [folderStatus, setFolderStatus] = React.useState({ status: 'idle', message: '' });
   const [mutationStatus, setMutationStatus] = React.useState({ status: 'idle', message: '' });
 
@@ -1160,7 +1156,7 @@ function SkillManagerSection(props) {
     if (skill.source && sourceValues.indexOf(skill.source) === -1) sourceValues.push(skill.source);
   });
   const filteredSkills = allSkills.filter((skill) => {
-    if (sourceFilter !== 'all' && skill.source !== sourceFilter) return false;
+    if (sourceFilter !== 'all' && sourceLabel(skill.source) !== sourceFilter) return false;
     if (!lowerQuery) return true;
     const haystack = [skill.name, skill.description, skill.whenToUse, skill.source, skill.provider].join(' ').toLowerCase();
     return haystack.includes(lowerQuery);
@@ -1180,11 +1176,16 @@ function SkillManagerSection(props) {
 
   const sourceOptions = [
     { value: 'all', label: '全部来源', count: allSkills.length },
-    ...sourceValues.map((source) => {
-      const count = allSkills.filter((s) => s.source === source).length;
-      return { value: source, label: sourceLabel(source), count };
-    }),
   ];
+  const seenSources = new Set();
+  sourceValues.forEach((source) => {
+    const label = sourceLabel(source);
+    if (!seenSources.has(label)) {
+      seenSources.add(label);
+      const count = allSkills.filter((s) => sourceLabel(s.source) === label).length;
+      sourceOptions.push({ value: label, label, count });
+    }
+  });
 
   const handleOpenFolder = () => {
     setFolderStatus({ status: 'opening', message: '正在打开资源文件夹…' });
@@ -1193,6 +1194,9 @@ function SkillManagerSection(props) {
       ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
     }).then((result) => {
       setFolderStatus({ status: 'success', message: `已打开 ${result && result.path ? result.path : '资源文件夹'}。` });
+      setTimeout(() => {
+        setFolderStatus((previous) => previous.status === 'success' ? { status: 'idle', message: '' } : previous);
+      }, 5000);
     }).catch((error) => setFolderStatus({ status: 'error', message: `打开失败：${errorText(error)}` }));
   };
 
@@ -1302,7 +1306,7 @@ function SkillManagerSection(props) {
           }, '×'),
         ) : null,
         sourceFilter !== 'all' ? h('span', { className: 'skm-metaChip' },
-          `来源: ${sourceLabel(sourceFilter)}`,
+          `来源: ${sourceFilter}`,
           h('button', {
             type: 'button',
             className: 'skm-metaChipRemove',
