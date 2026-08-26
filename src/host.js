@@ -100,44 +100,49 @@ class SkillsManagerService extends TypertRemoteService {
   }
 }
 
-export function apply(ctx) {
-  const skills = ctx.get('skills');
-  if (skills === undefined) return;
-
-  new SkillsManagerService(ctx, skills);
-
-  const typert = ctx.get('typert');
-  if (typert && typeof typert.register === 'function') {
+function registerDescriptors(ctx, typert, descriptors) {
+  try {
     const wire = (name) => ({ name, wire: name, source: 'json', codec: { mode: 'src-json' } });
-    const descriptor = {
+    const contribution = {
       package: 'dsh-skills-manager',
       face: 'host',
       model: {},
       schemas: [],
-      invocations: [
-        {
-          id: 'dsh-skills-manager#skillsManager/catalog',
-          service: 'skillsManager',
-          namespace: 'skillsManager',
-          method: 'catalog',
-          invocation: { kind: 'direct' },
-          parameters: [wire('payload')],
-          result: { mode: 'src-json' },
-        },
-        {
-          id: 'dsh-skills-manager#skillsManager/detail',
-          service: 'skillsManager',
-          namespace: 'skillsManager',
-          method: 'detail',
-          invocation: { kind: 'direct' },
-          parameters: [wire('payload')],
-          result: { mode: 'src-json' },
-        },
-      ],
+      invocations: descriptors.map((descriptor) => ({
+        id: `dsh-skills-manager#${descriptor.namespace}/${descriptor.method}`,
+        service: descriptor.namespace,
+        namespace: descriptor.namespace,
+        method: descriptor.method,
+        invocation: { kind: 'direct' },
+        parameters: descriptor.parameters.map(wire),
+        result: { mode: 'src-json' },
+      })),
     };
-    ctx.effect(() => typert.register(descriptor), 'dsh-skills-manager: typert descriptors');
+    return typert.register(contribution);
+  } catch (error) {
+    console.error('[dsh-skills-manager] typert strict registration failed:', error && error.message);
+    return () => {};
+  }
+}
+
+export function apply(ctx) {
+  const skills = ctx.skills;
+  if (skills === undefined) return;
+
+  const service = new SkillsManagerService(ctx, skills);
+
+  const typert = ctx.typert;
+  if (typert && typeof typert.register === 'function') {
+    const dispose = registerDescriptors(ctx, typert, [
+      { namespace: 'skillsManager', method: 'catalog', parameters: ['payload'] },
+      { namespace: 'skillsManager', method: 'detail', parameters: ['payload'] },
+    ]);
+    ctx.effect(() => dispose, 'dsh-skills-manager: typert descriptors');
+  } else {
+    console.warn('[dsh-skills-manager] typert service unavailable, SRC markers remain:',
+      service && service.typertRemote ? service.typertRemote.namespace : 'none');
   }
 }
 
 export const name = 'dsh-skills-manager';
-export const inject = ['skills'];
+export const inject = ['skills', 'typert'];
