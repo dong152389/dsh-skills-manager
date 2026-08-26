@@ -722,13 +722,14 @@ function errorText(error) {
 }
 
 function sourceLabel(source) {
-  if (source === 'project-dsh') return 'project / .dsh';
-  if (source === 'project-agents') return 'project / .agents';
-  if (source === 'user-dsh') return 'user / .dsh';
-  if (source === 'user-agents') return 'user / .agents';
-  if (source === 'runtime') return 'runtime';
-  if (source === 'bundled') return 'bundled';
-  return source || 'unknown';
+  if (source === 'project-dsh') return '项目 / .dsh';
+  if (source === 'project-agents') return '项目 / .agents';
+  if (source === 'user-dsh') return '用户 / .dsh';
+  if (source === 'user-agents') return '用户 / .agents';
+  if (source === 'runtime') return '运行时';
+  if (source === 'bundled') return '内置';
+  if (source === 'custom') return '自定义';
+  return source || '未知';
 }
 
 function scopeLabel(source) {
@@ -809,7 +810,7 @@ function SearchBox({ value, onChange, placeholder, ariaLabel }) {
       className: 'skm-searchInput',
       value,
       placeholder: placeholder || '搜索名称、描述或来源',
-      'aria-label': ariaLabel || '搜索 Skills',
+      'aria-label': ariaLabel || '搜索技能',
       onChange: (event) => onChange(event.target.value),
     }),
     value ? h('button', {
@@ -954,9 +955,9 @@ function SkillRow({ skill, active, onSelect }) {
     h('span', { className: 'skm-listMeta' },
       h('span', { className: 'skm-tag skm-tagAccent' }, sourceLabel(skill.source)),
       h('span', { className: 'skm-tag ' + scopeClass(skill.source) }, scopeLabel(skill.source)),
-      h('span', { className: 'skm-tag' }, skill.provider || 'unknown provider'),
-      skill.invocation && !skill.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'model off') : null,
-      skill.invocation && !skill.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'user off') : null,
+      h('span', { className: 'skm-tag' }, skill.provider || '未知提供方'),
+      skill.invocation && !skill.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, '模型禁用') : null,
+      skill.invocation && !skill.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, '用户禁用') : null,
     ),
   );
 }
@@ -983,7 +984,7 @@ function ToggleControl({ label, description, enabled, disabled, onChange }) {
 function Detail({ summary, detail, status, onToggle, mutationStatus }) {
   if (!summary) {
     return h('div', { className: 'skm-empty skm-detail' },
-      h('strong', null, '选择一个 Skill'),
+      h('strong', null, '选择一个技能'),
       '从左侧目录选择技能，查看它的来源、调用能力和正文。',
     );
   }
@@ -993,32 +994,32 @@ function Detail({ summary, detail, status, onToggle, mutationStatus }) {
   if (detail === null) {
     const message = typeof status === 'string' && status !== 'idle' && status !== 'ready'
       ? status
-      : '无法加载该 Skill 的正文。';
+      : '无法加载该技能的正文。';
     return h('div', { className: 'skm-empty skm-detail' }, message);
   }
   const editable = Boolean(detail.path && ['project-dsh', 'project-agents', 'user-dsh', 'user-agents', 'custom'].indexOf(summary.source) !== -1);
   const saving = mutationStatus && mutationStatus.status === 'saving';
   const mutationError = mutationStatus && mutationStatus.status === 'error' ? mutationStatus.message : '';
   return h('article', { className: 'skm-detail' },
-    h('div', { className: 'skm-detailEyebrow' }, 'Selected skill'),
+    h('div', { className: 'skm-detailEyebrow' }, '已选技能'),
     h('h3', { className: 'skm-detailTitle' }, summary.name),
     h('p', { className: 'skm-detailDescription' }, summary.description || '暂无描述'),
     h('div', { className: 'skm-tagRow', style: { marginTop: '12px' } },
       h('span', { className: 'skm-tag skm-tagAccent' }, sourceLabel(summary.source)),
       h('span', { className: 'skm-tag ' + scopeClass(summary.source) }, scopeLabel(summary.source)),
-      h('span', { className: 'skm-tag' }, summary.provider || 'unknown provider'),
-      summary.invocation && summary.invocation.modelInvocable ? h('span', { className: 'skm-tag' }, 'model-ready') : null,
-      summary.invocation && summary.invocation.userInvocable ? h('span', { className: 'skm-tag' }, 'user-ready') : null,
-      summary.invocation && !summary.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'model disabled') : null,
-      summary.invocation && !summary.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, 'user disabled') : null,
+      h('span', { className: 'skm-tag' }, summary.provider || '未知提供方'),
+      summary.invocation && summary.invocation.modelInvocable ? h('span', { className: 'skm-tag' }, '模型可用') : null,
+      summary.invocation && summary.invocation.userInvocable ? h('span', { className: 'skm-tag' }, '用户可用') : null,
+      summary.invocation && !summary.invocation.modelInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, '模型禁用') : null,
+      summary.invocation && !summary.invocation.userInvocable ? h('span', { className: 'skm-tag skm-tagDisabled' }, '用户禁用') : null,
     ),
     h('section', { className: 'skm-controlPanel' },
-      h('h4', { className: 'skm-sectionLabel' }, 'Invocation controls'),
-      h('p', { className: 'skm-controlHint' }, editable ? '分别控制模型和用户界面是否可以调用此 Skill。' : '内置或运行时 Skill 来自只读来源，不能在这里修改。'),
+      h('h4', { className: 'skm-sectionLabel' }, '调用控制'),
+      h('p', { className: 'skm-controlHint' }, editable ? '分别控制模型和用户界面是否可以调用此技能。' : '内置或运行时技能来自只读来源，不能在这里修改。'),
       h('div', { className: 'skm-toggleList' },
         h(ToggleControl, {
           label: '模型调用',
-          description: '是否出现在模型可用的 Skill 目录中',
+          description: '是否出现在模型可用的技能目录中',
           enabled: Boolean(summary.invocation && summary.invocation.modelInvocable),
           disabled: !editable || saving,
           onChange: (enabled) => onToggle('model', enabled),
@@ -1036,29 +1037,29 @@ function Detail({ summary, detail, status, onToggle, mutationStatus }) {
     ),
     h('div', { className: 'skm-detailMeta' },
       h('div', { className: 'skm-metaItem' },
-        h('span', { className: 'skm-metaLabel' }, 'Provider'),
+        h('span', { className: 'skm-metaLabel' }, '提供方'),
         h('span', { className: 'skm-metaValue', title: summary.provider || '' }, summary.provider || '—'),
       ),
       h('div', { className: 'skm-metaItem' },
-        h('span', { className: 'skm-metaLabel' }, 'Source'),
+        h('span', { className: 'skm-metaLabel' }, '来源'),
         h('span', { className: 'skm-metaValue', title: summary.source || '' }, sourceLabel(summary.source)),
       ),
       detail.path ? h('div', { className: 'skm-metaItem', style: { gridColumn: '1 / -1' } },
-        h('span', { className: 'skm-metaLabel' }, 'File'),
+        h('span', { className: 'skm-metaLabel' }, '文件路径'),
         h('span', { className: 'skm-metaValue', title: detail.path }, detail.path),
       ) : null,
       detail.resourceBase ? h('div', { className: 'skm-metaItem', style: { gridColumn: '1 / -1' } },
-        h('span', { className: 'skm-metaLabel' }, 'Resource base'),
+        h('span', { className: 'skm-metaLabel' }, '资源基目录'),
         h('span', { className: 'skm-metaValue', title: resourceValue(detail.resourceBase) }, resourceValue(detail.resourceBase)),
       ) : null,
     ),
     summary.whenToUse ? h('section', { className: 'skm-detailSection' },
-      h('h4', { className: 'skm-sectionLabel' }, 'When to use'),
+      h('h4', { className: 'skm-sectionLabel' }, '适用场景'),
       h('p', { className: 'skm-when' }, summary.whenToUse),
     ) : null,
     h('section', { className: 'skm-detailSection' },
-      h('h4', { className: 'skm-sectionLabel' }, 'Instructions'),
-      h('pre', { className: 'skm-body' }, detail.content || '此 Skill 没有正文。'),
+      h('h4', { className: 'skm-sectionLabel' }, '技能正文'),
+      h('pre', { className: 'skm-body' }, detail.content || '此技能没有正文。'),
     ),
   );
 }
@@ -1165,11 +1166,15 @@ function SkillManagerSection(props) {
     return haystack.includes(lowerQuery);
   });
   const selectedSummary = allSkills.find((skill) => skill.name === selectedName);
-  const completeLabel = catalog.complete ? 'discovery complete' : 'discovery partial';
+  const completeLabel = catalog.status === 'error'
+    ? '加载失败'
+    : catalog.complete
+      ? '发现完成'
+      : '部分发现';
   const workspaceSelectValue = workspaceChoice;
   const workspaceOptions = [
     { value: '__recent__', label: recentWorkspace ? `最近工作区 · ${workspaceLabel(recentWorkspace)}` : '最近工作区（未设置）' },
-    { value: '__all__', label: '全部全局 Skills' },
+    { value: '__all__', label: '全部全局技能' },
     ...workspaceItems.map((item) => ({ value: item.path, label: workspaceLabel(item) })),
   ];
 
@@ -1200,7 +1205,7 @@ function SkillManagerSection(props) {
       enabled,
       ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
     }).then((result) => {
-      if (!result) throw new Error('Skill 已不存在，请刷新目录。');
+      if (!result) throw new Error('技能已不存在，请刷新目录。');
       if (result.invocation) {
         setCatalog((previous) => Object.assign({}, previous, {
           skills: previous.skills.map((skill) => skill.name === selectedName
@@ -1218,16 +1223,16 @@ function SkillManagerSection(props) {
     h('style', { dangerouslySetInnerHTML: { __html: css } }),
     h('header', { className: 'skm-head' },
       h('div', null,
-        h('div', { className: 'skm-kicker' }, 'Skill registry / local workbench'),
-        h('h2', { className: 'skm-title' }, 'Skills'),
+        h('div', { className: 'skm-kicker' }, '技能注册表 · 本地工作台'),
+        h('h2', { className: 'skm-title' }, '技能'),
         h('p', { className: 'skm-intro' }, '把技能目录变成一张可检索的工作台：先选范围，再从来源、调用能力与正文判断该用哪一个。'),
       ),
       h('div', { className: 'skm-headMark', 'aria-hidden': 'true' }, '✦'),
     ),
     h('div', { className: 'skm-stats' },
-      h(Stat, { value: String(allSkills.length), label: 'skills found' }),
-      h(Stat, { value: String(sourceValues.length), label: 'sources' }),
-      h(Stat, { value: catalog.status === 'loading' ? '…' : completeLabel, label: 'catalog state' }),
+      h(Stat, { value: String(allSkills.length), label: '已发现技能' }),
+      h(Stat, { value: String(sourceValues.length), label: '来源数' }),
+      h(Stat, { value: catalog.status === 'loading' ? '…' : completeLabel, label: '目录状态' }),
     ),
     h('div', { className: 'skm-toolbar' },
       h('div', { className: 'skm-toolbarRow' },
@@ -1235,20 +1240,20 @@ function SkillManagerSection(props) {
           value: query,
           onChange: setQuery,
           placeholder: '搜索名称、描述或来源',
-          ariaLabel: '搜索 Skills',
+          ariaLabel: '搜索技能',
         }),
         h(CustomSelect, {
           value: workspaceSelectValue,
           onChange: setWorkspaceChoice,
           options: workspaceOptions,
-          ariaLabel: '选择 Skill 工作区范围',
+          ariaLabel: '选择技能工作区范围',
           style: { flex: '0 1 250px', minWidth: '170px' },
         }),
         h(CustomSelect, {
           value: sourceFilter,
           onChange: setSourceFilter,
           options: sourceOptions,
-          ariaLabel: '按来源筛选 Skills',
+          ariaLabel: '按来源筛选技能',
           alignRight: true,
           style: { flex: '0 1 150px', minWidth: '120px' },
         }),
@@ -1322,7 +1327,7 @@ function SkillManagerSection(props) {
     h('div', { className: 'skm-workbench' },
       h('div', { className: 'skm-listPane' },
         h('div', { className: 'skm-paneHead' },
-          h('h3', { className: 'skm-paneTitle' }, 'Catalog'),
+          h('h3', { className: 'skm-paneTitle' }, '技能目录'),
           h('span', { className: 'skm-paneCount' },
             filteredSkills.length === allSkills.length
               ? String(filteredSkills.length).padStart(2, '0')
@@ -1333,7 +1338,7 @@ function SkillManagerSection(props) {
           ? h('div', null, h('div', { className: 'skm-skeleton' }), h('div', { className: 'skm-skeleton' }), h('div', { className: 'skm-skeleton' }))
           : filteredSkills.length === 0
             ? h('div', { className: 'skm-empty' },
-              h('strong', null, allSkills.length === 0 ? '这里还没有 Skills' : '没有匹配项'),
+              h('strong', null, allSkills.length === 0 ? '这里还没有技能' : '没有匹配项'),
               allSkills.length === 0 ? '检查当前工作区的 .dsh/skills 或 .agents/skills 目录。' : '换一个关键词或放宽来源筛选。',
             )
             : h('div', { className: 'skm-list', role: 'list' }, filteredSkills.map((skill) => h(SkillRow, {
@@ -1363,7 +1368,7 @@ function makeApi(ctx) {
     return connection.rpc.call('/api', 'skillsManager/' + method, { args: args || {} }, undefined).then((result) => {
       if (result && result.ok) return result.value;
       const message = result && result.error && result.error.message;
-      throw new Error(message || 'Skills 管理器请求失败');
+      throw new Error(message || '技能管理器请求失败');
     });
   };
   return {
