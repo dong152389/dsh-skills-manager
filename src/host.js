@@ -1,9 +1,8 @@
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { homedir } from 'node:os';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { promisify } from 'node:util';
 
 const EDITABLE_SOURCES = new Set([
   'project-dsh',
@@ -12,7 +11,6 @@ const EDITABLE_SOURCES = new Set([
   'user-agents',
   'custom',
 ]);
-const execFileAsync = promisify(execFile);
 
 function stringOrEmpty(value) {
   return typeof value === 'string' ? value : '';
@@ -119,13 +117,21 @@ async function resourceDirectory(target, cwd) {
 
 async function openResourceFolder(path) {
   await mkdir(path, { recursive: true });
-  if (process.platform === 'win32') {
-    await execFileAsync('explorer.exe', [path]);
-  } else if (process.platform === 'darwin') {
-    await execFileAsync('open', [path]);
-  } else {
-    await execFileAsync('xdg-open', [path]);
-  }
+  const command = process.platform === 'win32'
+    ? 'explorer.exe'
+    : process.platform === 'darwin'
+      ? 'open'
+      : 'xdg-open';
+  const child = spawn(command, [resolve(path)], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  await new Promise((resolveLaunch, rejectLaunch) => {
+    child.once('spawn', resolveLaunch);
+    child.once('error', rejectLaunch);
+  });
+  child.unref();
 }
 
 function editableSkill(skill) {
