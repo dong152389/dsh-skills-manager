@@ -1383,15 +1383,105 @@ function makeApi(ctx) {
   };
 }
 
+const navStyleId = 'dsh-skills-manager-nav-style';
+
+const navCss = String.raw`
+button:has([data-section-id="skills-manager"]) > svg:not(.skm-nav-toolbox-icon),
+button[data-settings-section="skills-manager"] > svg:not(.skm-nav-toolbox-icon) {
+  display: none !important;
+}
+
+button:has([data-section-id="skills-manager"]):not(:has(.skm-nav-toolbox-icon))::before,
+button[data-settings-section="skills-manager"]:not(:has(.skm-nav-toolbox-icon))::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 3.5V2.2C5.5 1.54 6.04 1 6.7 1h2.6c.66 0 1.2.54 1.2 1.2v1.3'/%3E%3Crect x='1.5' y='3.5' width='13' height='10.5' rx='1.5'/%3E%3Cpath d='M1.5 7.5h13'/%3E%3Crect x='6.5' y='6.5' width='3' height='2' rx='0.4' fill='black' stroke='none'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 3.5V2.2C5.5 1.54 6.04 1 6.7 1h2.6c.66 0 1.2.54 1.2 1.2v1.3'/%3E%3Crect x='1.5' y='3.5' width='13' height='10.5' rx='1.5'/%3E%3Cpath d='M1.5 7.5h13'/%3E%3Crect x='6.5' y='6.5' width='3' height='2' rx='0.4' fill='black' stroke='none'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+.skm-nav-toolbox-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: inherit;
+}
+`;
+
+function ensureGlobalNavStyles() {
+  if (typeof document === 'undefined') return;
+  if (!document.getElementById(navStyleId)) {
+    const tag = document.createElement('style');
+    tag.id = navStyleId;
+    tag.dataset.plugin = 'dsh-skills-manager';
+    tag.textContent = navCss;
+    document.head.appendChild(tag);
+  }
+}
+
+ensureGlobalNavStyles();
+
+function createToolboxSvgElement(originalSvg) {
+  if (typeof document === 'undefined' || typeof DOMParser === 'undefined') return null;
+  const parser = new DOMParser();
+  const svgDoc = parser.parseFromString(
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" class="skm-nav-toolbox-icon">' +
+      '<path d="M5.5 3.5V2.2C5.5 1.54 6.04 1 6.7 1h2.6c.66 0 1.2.54 1.2 1.2v1.3"></path>' +
+      '<rect x="1.5" y="3.5" width="13" height="10.5" rx="1.5"></rect>' +
+      '<path d="M1.5 7.5h13"></path>' +
+      '<rect x="6.5" y="6.5" width="3" height="2" rx="0.4" fill="currentColor" stroke="none"></rect>' +
+    '</svg>',
+    'image/svg+xml'
+  );
+  const el = document.importNode(svgDoc.documentElement, true);
+  if (originalSvg) {
+    const origClass = originalSvg.getAttribute('class');
+    if (origClass) {
+      el.setAttribute('class', 'skm-nav-toolbox-icon ' + origClass);
+    }
+  }
+  el.style.width = '16px';
+  el.style.height = '16px';
+  el.style.flex = 'none';
+  return el;
+}
+
+function SkillNavLabel() {
+  const ref = React.useRef(null);
+
+  React.useLayoutEffect(() => {
+    ensureGlobalNavStyles();
+    if (!ref.current) return;
+    const btn = ref.current.closest('button');
+    if (btn) {
+      btn.setAttribute('data-settings-section', 'skills-manager');
+      const originalSvg = btn.querySelector('svg:not(.skm-nav-toolbox-icon)');
+      if (originalSvg && !btn.querySelector('.skm-nav-toolbox-icon')) {
+        originalSvg.style.display = 'none';
+        const toolboxSvg = createToolboxSvgElement(originalSvg);
+        if (toolboxSvg) {
+          btn.insertBefore(toolboxSvg, originalSvg);
+        }
+      }
+    }
+  }, []);
+
+  return h('span', { ref, className: 'skm-nav-label-text', 'data-section-id': 'skills-manager' }, 'Skills');
+}
+
 function apply(ctx) {
   const slots = ctx.get('slots');
   if (slots === undefined) return;
+  ensureGlobalNavStyles();
   const api = makeApi(ctx);
   ctx.effect(() => slots.inject('settings.section', () => slots.register({
     name: 'settings.section',
     id: 'skills-manager',
     order: 25,
-    label: 'Skills',
+    label: () => h(SkillNavLabel),
   }, (props) => h(SkillManagerSection, Object.assign({}, props, { api })))), 'dsh-skills-manager: settings section');
 }
 
