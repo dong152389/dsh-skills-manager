@@ -7,7 +7,7 @@
   <em>A modern visual dashboard & control panel for DeepSeek Harness (DSH) Skills registry.</em>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.1.0-3b82f6.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-0.1.1-3b82f6.svg?style=flat-square)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
 [![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.1.1--rc.2-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
 [![Cordis](https://img.shields.io/badge/Cordis-v4.x-f59e0b.svg?style=flat-square)](https://cordis.moe/)
@@ -95,7 +95,7 @@ DeepSeek Harness (DSH) 拥有强大且灵活的分层 Skills 扩展机制（涵�
 | 运行环境 / 依赖 | 推荐版本 | 说明 |
 | :--- | :--- | :--- |
 | **Node.js** | `>= 18.0.0` | 支持原生 ESM 与 Child Process |
-| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2` | 需具备 Cordis 4.x 及 Typert RPC 机制 |
+| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2 < 0.2.0` | 需具备 Cordis 4.x 及 Typert RPC 机制 |
 
 在终端中检查当前 DSH 版本：
 
@@ -103,6 +103,19 @@ DeepSeek Harness (DSH) 拥有强大且灵活的分层 Skills 扩展机制（涵�
 dsh --version
 # 输出示例: 0.1.1-rc.2
 ```
+
+### 🔐 安全边界、依赖与失败行为
+
+本插件是 `R2`（本地持久化写入 + 可选外部进程）的 DSH Web Bundle。它不会修改 DSH 核心、官方插件清单或 Profile 配置；Profile 的安装和卸载由 DSH 官方 CLI 单独完成。完整的权限矩阵和一次性 Profile 验收记录见 [`SECURITY.md`](SECURITY.md) 与 [`docs/dsh-profile-evidence.md`](docs/dsh-profile-evidence.md)。
+
+| 能力 | 实际范围 |
+| :--- | :--- |
+| 文件 | 读取 DSH Skills registry；只在用户明确选择的项目/用户 `skills` 目录创建目录、上传文件或更新 `SKILL.md` frontmatter；上传路径会拒绝目录穿越。 |
+| 命令 | 仅在用户请求打开目录时，以固定参数调用系统文件管理器（Windows `cmd.exe`/`explorer.exe`，macOS `open`，Linux `xdg-open`）；不执行用户提供的 shell 命令。 |
+| 网络 | 插件运行时代码不发起网络请求，也不依赖外部服务；DSH 自身的安装器和 peer 依赖仍需联网获取。 |
+| 凭据 | 只读取 `DSH_HOME`/`DSH_AGENTS_HOME` 作为路径覆盖，不读取 token、密码、cookie、密钥或凭据文件。 |
+| 依赖 | Node.js 内置 `fs`、`os`、`path`、`child_process`；DSH 提供的 `skills`、`typert`、`slots` 与 RPC/React 运行时。 |
+| 失败边界 | 无效工作区、非法路径、缺少 frontmatter、只读技能、并发文件变化和系统文件管理器失败都会返回错误；批量上传在中途失败时可能保留此前已写入的文件，需由用户检查并清理。 |
 
 ---
 
