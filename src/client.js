@@ -409,6 +409,120 @@ const css = String.raw`
 .skm-button:disabled { opacity: .56; cursor: not-allowed; }
 .skm-buttonAccent { border-color: var(--skm-accent); color: var(--skm-accent); }
 .skm-buttonIcon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.skm-splitButton {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: 36px;
+  flex: 0 0 auto;
+}
+.skm-splitButtonMain {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 11px 0 13px;
+  border: 1px solid var(--skm-accent);
+  border-right: 0;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  color: var(--skm-accent);
+  background: var(--skm-bg);
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 12px;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.skm-splitButtonMain:hover:not(:disabled) {
+  background: var(--skm-bg-raised);
+}
+.skm-splitButtonMain:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.skm-splitButtonMain:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+}
+.skm-splitButtonArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--skm-accent);
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  color: var(--skm-accent);
+  background: var(--skm-bg);
+  cursor: pointer;
+  position: relative;
+  font: inherit;
+  transition: border-color .16s ease, background .16s ease;
+}
+.skm-splitButtonArrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 1px;
+  background: color-mix(in srgb, var(--skm-accent) 30%, transparent);
+}
+.skm-splitButtonArrow:hover:not(:disabled),
+.skm-splitButtonArrowOpen {
+  background: var(--skm-bg-raised);
+}
+.skm-splitButtonArrow:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.skm-splitButtonArrow:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+}
+.skm-splitButtonChevron {
+  transition: transform .18s ease;
+}
+.skm-splitButtonArrowOpen .skm-splitButtonChevron {
+  transform: rotate(180deg);
+}
+.skm-splitButtonMenu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  min-width: 130px;
+  z-index: 130;
+  padding: 4px;
+  border: 1px solid var(--skm-border-strong);
+  border-radius: 8px;
+  background: var(--skm-bg);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, .14), 0 2px 6px rgba(0, 0, 0, .06);
+  animation: skm-popIn .12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.skm-splitButtonItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--skm-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s ease, color .12s ease;
+}
+.skm-splitButtonItem:hover,
+.skm-splitButtonItem:focus-visible {
+  background: var(--skm-bg-raised);
+  color: var(--skm-accent);
+  outline: none;
+}
 @keyframes skm-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .skm-spin { animation: skm-spin 0.85s linear infinite; }
 .skm-status {
@@ -786,6 +900,164 @@ function FolderIcon() {
   );
 }
 
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const bytes = new Uint8Array(reader.result);
+        let binary = '';
+        const len = bytes.byteLength;
+        const chunkSize = 0x8000;
+        for (let i = 0; i < len; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, len)));
+        }
+        resolve(btoa(binary));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('读取文件失败'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function UploadIcon({ spinning }) {
+  if (spinning) {
+    return h(RefreshIcon, { spinning: true });
+  }
+  return h('svg', {
+    className: 'skm-buttonIcon',
+    width: 13,
+    height: 13,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2.2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  },
+    h('path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }),
+    h('polyline', { points: '17 8 12 3 7 8' }),
+    h('line', { x1: 12, y1: 3, x2: 12, y2: 15 }),
+  );
+}
+
+function FileIcon() {
+  return h('svg', {
+    className: 'skm-buttonIcon',
+    width: 13,
+    height: 13,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2.2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  },
+    h('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+    h('polyline', { points: '14 2 14 8 20 8' }),
+  );
+}
+
+function UploadSplitButton({ uploading, onUploadFile, onUploadFolder }) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const containerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!menuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  return h('div', {
+    ref: containerRef,
+    className: 'skm-splitButton' + (menuOpen ? ' skm-splitButtonOpen' : ''),
+  },
+    h('button', {
+      type: 'button',
+      className: 'skm-splitButtonMain',
+      disabled: uploading,
+      onClick: () => {
+        setMenuOpen(false);
+        onUploadFile();
+      },
+      title: '上传文件（文件类型不限制）',
+    },
+      h(UploadIcon, { spinning: uploading }),
+      uploading ? '上传中…' : '上传文件',
+    ),
+    h('button', {
+      type: 'button',
+      className: 'skm-splitButtonArrow' + (menuOpen ? ' skm-splitButtonArrowOpen' : ''),
+      disabled: uploading,
+      onClick: () => setMenuOpen((prev) => !prev),
+      title: '更多上传选项（上传文件夹）',
+      'aria-haspopup': 'menu',
+      'aria-expanded': menuOpen,
+      'aria-label': '展开上传选项菜单',
+    },
+      h('svg', {
+        className: 'skm-splitButtonChevron',
+        width: 12,
+        height: 12,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth: 2.2,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        'aria-hidden': 'true',
+      },
+        h('polyline', { points: '6 9 12 15 18 9' }),
+      ),
+    ),
+    menuOpen ? h('div', {
+      className: 'skm-splitButtonMenu',
+      role: 'menu',
+    },
+      h('button', {
+        type: 'button',
+        role: 'menuitem',
+        className: 'skm-splitButtonItem',
+        onClick: () => {
+          setMenuOpen(false);
+          onUploadFolder();
+        },
+      },
+        h(FolderIcon),
+        '上传文件夹',
+      ),
+      h('button', {
+        type: 'button',
+        role: 'menuitem',
+        className: 'skm-splitButtonItem',
+        onClick: () => {
+          setMenuOpen(false);
+          onUploadFile();
+        },
+      },
+        h(FileIcon),
+        '上传文件',
+      ),
+    ) : null,
+  );
+}
+
 function SearchBox({ value, onChange, placeholder, ariaLabel }) {
   return h('div', { className: 'skm-searchBox' },
     h('svg', {
@@ -1085,8 +1357,17 @@ function SkillManagerSection(props) {
   const [detailStatus, setDetailStatus] = React.useState('idle');
   const [detail, setDetail] = React.useState(null);
   const [resourceTarget, setResourceTarget] = React.useState(recentPath ? 'project-agents' : 'user-agents');
-  const [folderStatus, setFolderStatus] = React.useState({ status: 'idle', message: '' });
+  const [uploadStatus, setUploadStatus] = React.useState({ status: 'idle', message: '' });
   const [mutationStatus, setMutationStatus] = React.useState({ status: 'idle', message: '' });
+  const fileInputRef = React.useRef(null);
+  const folderInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+    }
+  }, []);
 
   const effectiveCwd = workspaceChoice === '__recent__'
     ? recentPath
@@ -1187,17 +1468,71 @@ function SkillManagerSection(props) {
     }
   });
 
-  const handleOpenFolder = () => {
-    setFolderStatus({ status: 'opening', message: '正在打开资源文件夹…' });
-    api.openFolder({
-      target: resourceTarget,
-      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-    }).then((result) => {
-      setFolderStatus({ status: 'success', message: `已打开 ${result && result.path ? result.path : '资源文件夹'}。` });
+  const handleUpload = async (fileList, isFolder, inputEl) => {
+    const files = Array.from(fileList || []);
+    if (inputEl) inputEl.value = '';
+    if (files.length === 0) return;
+
+    setUploadStatus({ status: 'uploading', message: isFolder ? '正在读取文件夹内容…' : '正在读取文件…' });
+
+    try {
+      const payloadFiles = await Promise.all(files.map(async (file) => {
+        const content = await readFileAsBase64(file);
+        const path = isFolder ? (file.webkitRelativePath || file.name) : file.name;
+        return { path, content };
+      }));
+
+      setUploadStatus({ status: 'uploading', message: `正在上传 ${payloadFiles.length} 个文件…` });
+
+      const BATCH_SIZE = 20;
+      const BATCH_BYTES = 4 * 1024 * 1024;
+      let currentBatch = [];
+      let currentSize = 0;
+      let totalUploaded = 0;
+      let lastResult = null;
+
+      for (const file of payloadFiles) {
+        const size = file.content.length;
+        if (currentBatch.length > 0 && (currentBatch.length >= BATCH_SIZE || currentSize + size > BATCH_BYTES)) {
+          const res = await api.upload({
+            target: resourceTarget,
+            ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+            files: currentBatch,
+          });
+          totalUploaded += (res && res.count) || currentBatch.length;
+          lastResult = res;
+          currentBatch = [];
+          currentSize = 0;
+        }
+        currentBatch.push(file);
+        currentSize += size;
+      }
+
+      if (currentBatch.length > 0) {
+        const res = await api.upload({
+          target: resourceTarget,
+          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+          files: currentBatch,
+        });
+        totalUploaded += (res && res.count) || currentBatch.length;
+        lastResult = res;
+      }
+
+      const destInfo = (lastResult && lastResult.targetDir) ? ` 至 ${lastResult.targetDir}` : '';
+      setUploadStatus({
+        status: 'success',
+        message: `成功上传 ${totalUploaded} 个文件${destInfo}。`,
+      });
+      setRefreshKey((value) => value + 1);
       setTimeout(() => {
-        setFolderStatus((previous) => previous.status === 'success' ? { status: 'idle', message: '' } : previous);
+        setUploadStatus((previous) => previous.status === 'success' ? { status: 'idle', message: '' } : previous);
       }, 5000);
-    }).catch((error) => setFolderStatus({ status: 'error', message: `打开失败：${errorText(error)}` }));
+    } catch (error) {
+      setUploadStatus({
+        status: 'error',
+        message: `上传失败：${errorText(error)}`,
+      });
+    }
   };
 
   const handleToggle = (field, enabled) => {
@@ -1265,20 +1600,31 @@ function SkillManagerSection(props) {
           value: resourceTarget,
           onChange: setResourceTarget,
           options: resourceTargetOptions,
-          ariaLabel: '选择资源文件夹',
+          ariaLabel: '选择目标技能目录',
           alignRight: true,
           style: { flex: '0 1 190px', minWidth: '165px' },
         }),
-        h('button', {
-          type: 'button',
-          className: 'skm-button skm-buttonAccent',
-          onClick: handleOpenFolder,
-          disabled: folderStatus.status === 'opening',
-          title: '打开资源文件夹',
-        },
-          h(FolderIcon),
-          folderStatus.status === 'opening' ? '打开中' : '打开文件夹',
-        ),
+        h('input', {
+          ref: fileInputRef,
+          type: 'file',
+          multiple: true,
+          style: { display: 'none' },
+          onChange: (event) => handleUpload(event.target.files, false, event.target),
+        }),
+        h('input', {
+          ref: folderInputRef,
+          type: 'file',
+          multiple: true,
+          webkitdirectory: '',
+          directory: '',
+          style: { display: 'none' },
+          onChange: (event) => handleUpload(event.target.files, true, event.target),
+        }),
+        h(UploadSplitButton, {
+          uploading: uploadStatus.status === 'uploading',
+          onUploadFile: () => fileInputRef.current && fileInputRef.current.click(),
+          onUploadFolder: () => folderInputRef.current && folderInputRef.current.click(),
+        }),
         h('button', {
           type: 'button',
           className: 'skm-button skm-buttonAccent',
@@ -1324,10 +1670,10 @@ function SkillManagerSection(props) {
     h('div', { className: 'skm-status' + (catalog.status === 'error' || typeof detailStatus === 'string' && detailStatus !== 'idle' && detailStatus !== 'loading' && detailStatus !== 'ready' ? ' skm-statusError' : '') , 'aria-live': 'polite' },
       catalog.status === 'error' ? `目录加载失败：${catalog.error}` : catalog.status === 'loading' ? '正在扫描技能目录…' : catalog.complete ? '目录已完成扫描；技能文件变更后可点击刷新。' : '目录扫描尚未完全收敛，当前结果可用但建议稍后刷新。',
     ),
-    folderStatus.status !== 'idle' ? h('div', {
-      className: 'skm-status' + (folderStatus.status === 'error' ? ' skm-statusError' : folderStatus.status === 'success' ? ' skm-statusSuccess' : ''),
+    uploadStatus.status !== 'idle' ? h('div', {
+      className: 'skm-status' + (uploadStatus.status === 'error' ? ' skm-statusError' : uploadStatus.status === 'success' ? ' skm-statusSuccess' : ''),
       'aria-live': 'polite',
-    }, folderStatus.message) : null,
+    }, uploadStatus.message) : null,
     h('div', { className: 'skm-workbench' },
       h('div', { className: 'skm-listPane' },
         h('div', { className: 'skm-paneHead' },
@@ -1380,6 +1726,7 @@ function makeApi(ctx) {
     detail: (payload) => call('detail', { payload: payload || {} }),
     openFolder: (payload) => call('openFolder', { payload: payload || {} }),
     toggle: (payload) => call('toggle', { payload: payload || {} }),
+    upload: (payload) => call('upload', { payload: payload || {} }),
   };
 }
 
