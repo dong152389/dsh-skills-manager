@@ -103,16 +103,33 @@ function agentsHome() {
   return configured ? resolve(configured) : join(homedir(), '.agents');
 }
 
+async function ensureSkillsDirectories(cwd) {
+  try {
+    await mkdir(join(agentsHome(), 'skills'), { recursive: true });
+    await mkdir(join(dshHome(), 'skills'), { recursive: true });
+    if (cwd) {
+      const projectRoot = await findProjectRoot(cwd);
+      await mkdir(join(projectRoot, '.agents', 'skills'), { recursive: true });
+      await mkdir(join(projectRoot, '.dsh', 'skills'), { recursive: true });
+    }
+  } catch (error) {
+    console.warn('[dsh-skills-manager] 预建 skills 目录提示:', error && error.message);
+  }
+}
+
 async function resourceDirectory(target, cwd) {
   const normalizedTarget = optionalString(target) || (cwd ? 'project-agents' : 'user-dsh');
+  let dir;
   if (normalizedTarget === 'project-dsh' || normalizedTarget === 'project-agents') {
     const projectRoot = await findProjectRoot(cwd);
-    return join(projectRoot, normalizedTarget === 'project-dsh' ? '.dsh' : '.agents', 'skills');
+    dir = join(projectRoot, normalizedTarget === 'project-dsh' ? '.dsh' : '.agents', 'skills');
+  } else if (normalizedTarget === 'user-dsh' || normalizedTarget === 'user-agents') {
+    dir = join(normalizedTarget === 'user-dsh' ? dshHome() : agentsHome(), 'skills');
+  } else {
+    throw new Error('不支持的资源目录。');
   }
-  if (normalizedTarget === 'user-dsh' || normalizedTarget === 'user-agents') {
-    return join(normalizedTarget === 'user-dsh' ? dshHome() : agentsHome(), 'skills');
-  }
-  throw new Error('不支持的资源目录。');
+  await mkdir(dir, { recursive: true });
+  return dir;
 }
 
 async function openResourceFolder(path) {
@@ -267,7 +284,9 @@ class SkillsManagerService extends TypertRemoteService {
   }
 
   async catalog(payload) {
-    const snapshot = await this.skills.snapshot(lookupOptions(payload));
+    const options = lookupOptions(payload);
+    await ensureSkillsDirectories(options.cwd);
+    const snapshot = await this.skills.snapshot(options);
     const entries = Array.isArray(snapshot && snapshot.skills) ? snapshot.skills : [];
     return {
       complete: snapshot ? snapshot.complete === true : false,
@@ -345,6 +364,8 @@ function registerDescriptors(ctx, typert, descriptors) {
 export function apply(ctx) {
   const skills = ctx.skills;
   if (skills === undefined) return;
+
+  ensureSkillsDirectories().catch(() => {});
 
   const service = new SkillsManagerService(ctx, skills);
 
