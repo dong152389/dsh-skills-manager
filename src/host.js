@@ -1,10 +1,10 @@
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
 import { homedir } from 'node:os';
+import { execFile } from 'node:child_process';
 import { access, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, basename, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
-const PROJECT_TARGETS = new Set(['project-dsh', 'project-agents']);
-const GLOBAL_TARGETS = new Set(['user-dsh', 'user-agents']);
 const EDITABLE_SOURCES = new Set([
   'project-dsh',
   'project-agents',
@@ -12,7 +12,7 @@ const EDITABLE_SOURCES = new Set([
   'user-agents',
   'custom',
 ]);
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const execFileAsync = promisify(execFile);
 
 function stringOrEmpty(value) {
   return typeof value === 'string' ? value : '';
@@ -105,42 +105,27 @@ function agentsHome() {
   return configured ? resolve(configured) : join(homedir(), '.agents');
 }
 
-async function targetDirectory(target, cwd) {
+async function resourceDirectory(target, cwd) {
   const normalizedTarget = optionalString(target) || (cwd ? 'project-agents' : 'user-dsh');
-  if (PROJECT_TARGETS.has(normalizedTarget)) {
+  if (normalizedTarget === 'project-dsh' || normalizedTarget === 'project-agents') {
     const projectRoot = await findProjectRoot(cwd);
     return join(projectRoot, normalizedTarget === 'project-dsh' ? '.dsh' : '.agents', 'skills');
   }
-  if (GLOBAL_TARGETS.has(normalizedTarget)) {
+  if (normalizedTarget === 'user-dsh' || normalizedTarget === 'user-agents') {
     return join(normalizedTarget === 'user-dsh' ? dshHome() : agentsHome(), 'skills');
   }
-  throw new Error('不支持的上传目标。');
+  throw new Error('不支持的资源目录。');
 }
 
-function uploadFileName(value) {
-  const fileName = optionalString(value);
-  if (!fileName || basename(fileName) !== fileName) {
-    throw new Error('只能上传根目录下的 Markdown Skill 文件。');
+async function openResourceFolder(path) {
+  await mkdir(path, { recursive: true });
+  if (process.platform === 'win32') {
+    await execFileAsync('explorer.exe', [path]);
+  } else if (process.platform === 'darwin') {
+    await execFileAsync('open', [path]);
+  } else {
+    await execFileAsync('xdg-open', [path]);
   }
-  if (!fileName.toLowerCase().endsWith('.md')) throw new Error('Skill 文件必须使用 .md 扩展名。');
-  return fileName;
-}
-
-function parseUploadFrontmatter(content) {
-  const header = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(content);
-  if (!header) throw new Error('Skill 文件缺少有效的 YAML frontmatter。');
-  const field = (name) => {
-    const line = header[1].split(/\r?\n/).find((item) => new RegExp(`^${name}\\s*:`).test(item));
-    if (!line) return '';
-    return line.slice(line.indexOf(':') + 1).trim().replace(/^("([\s\S]*)"|'([\s\S]*)')$/, '$2$3');
-  };
-  const name = field('name');
-  const description = field('description');
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
-    throw new Error('Skill 的 name 必须是 kebab-case，例如：web-search。');
-  }
-  if (!description) throw new Error('Skill frontmatter 必须包含 description。');
-  return { name, description };
 }
 
 function editableSkill(skill) {
@@ -231,7 +216,7 @@ function notifySkillChange(ctx, target, version) {
 }
 
 function markRemoteMethods(service) {
-  for (const method of ['catalog', 'detail', 'upload', 'toggle']) {
+  for (const method of ['catalog', 'detail', 'openFolder', 'toggle']) {
     const initializers = [];
     const context = {
       name: method,
@@ -267,23 +252,14 @@ class SkillsManagerService extends TypertRemoteService {
     return definitionOf(skill);
   }
 
-  async upload(payload) {
+  async openFolder(payload) {
     const input = payload && typeof payload === 'object' ? payload : {};
-    const content = typeof input.content === 'string' ? input.content : '';
-    if (!content) throw new Error('上传内容不能为空。');
-    if (Buffer.byteLength(content, 'utf8') > MAX_UPLOAD_BYTES) throw new Error('Skill 文件不能超过 5 MB。');
-    const fileName = uploadFileName(input.fileName);
-    const metadata = parseUploadFrontmatter(content);
     const cwd = optionalString(input.cwd);
-    const directory = await targetDirectory(input.target, cwd);
-    const path = join(directory, fileName);
-    const written = await writeManagedText(this.ctx, path, content, { kind: 'createIfAbsent' });
-    notifySkillChange(this.ctx, written.target, written.version);
+    const path = await resourceDirectory(input.target, cwd);
+    await openResourceFolder(path);
     return {
-      name: metadata.name,
-      description: metadata.description,
       path,
-      target: input.target || (cwd ? 'project-agents' : 'user-dsh'),
+      target: input.target || (cwd ? 'project-agents' : 'user-agents'),
     };
   }
 
@@ -347,7 +323,7 @@ export function apply(ctx) {
     const dispose = registerDescriptors(ctx, typert, [
       { namespace: 'skillsManager', method: 'catalog', parameters: ['payload'] },
       { namespace: 'skillsManager', method: 'detail', parameters: ['payload'] },
-      { namespace: 'skillsManager', method: 'upload', parameters: ['payload'] },
+      { namespace: 'skillsManager', method: 'openFolder', parameters: ['payload'] },
       { namespace: 'skillsManager', method: 'toggle', parameters: ['payload'] },
     ]);
     ctx.effect(() => dispose, 'dsh-skills-manager: typert descriptors');
