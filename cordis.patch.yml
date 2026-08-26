@@ -1,0 +1,10 @@
+# Mount the Skills manager into a DSH Web profile.
+- insert:
+    - id: skills-manager
+      name: dsh-skills-manager
+
+# The Web shell normally leaves filesystem discovery to the agent-preset layer.
+# The settings page is host-scoped, so enable one global provider for its
+# workspace-aware catalog reads as well.
+- id: skill-filesystem
+  disabled: false
