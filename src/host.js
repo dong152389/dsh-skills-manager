@@ -103,6 +103,18 @@ function agentsHome() {
   return configured ? resolve(configured) : join(homedir(), '.agents');
 }
 
+// Settings actions are explicit host-side user actions, so they do not have a
+// model session workspace to inherit. Keep the filesystem sandbox enabled, but
+// scope each managed mutation to the directory containing that skill file.
+// This also keeps an unexpected symlink from broadening the write target: the
+// sandbox re-resolves the target and checks it against this canonical root.
+export function scopedWritePolicy(path) {
+  return {
+    mode: 'workspace-write',
+    workspaceRoot: dirname(resolve(path)),
+  };
+}
+
 async function ensureSkillsDirectories(cwd) {
   try {
     await mkdir(join(agentsHome(), 'skills'), { recursive: true });
@@ -206,7 +218,13 @@ async function writeManagedText(ctx, path, content, expected) {
   const fs = optionalFs(ctx);
   if (fs) {
     const target = await fs.resolve(path);
-    const result = await fs.writeText(target, content, expected);
+    const result = await fs.writeText(
+      target,
+      content,
+      expected,
+      undefined,
+      scopedWritePolicy(path),
+    );
     return { target, version: result && result.version };
   }
   await mkdir(dirname(path), { recursive: true });
@@ -423,3 +441,4 @@ export function apply(ctx) {
 
 export const name = 'dsh-skills-manager';
 export const inject = ['skills', 'typert'];
+
