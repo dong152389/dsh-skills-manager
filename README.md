@@ -7,9 +7,9 @@
   <em>A modern visual dashboard & control panel for DeepSeek Harness (DSH) Skills registry.</em>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.1.1-3b82f6.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-0.2.0-3b82f6.svg?style=flat-square)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
-[![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.1.1--rc.2-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.2.2--rc.0%20%3C0.3.0--0-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
 [![Cordis](https://img.shields.io/badge/Cordis-v4.x-f59e0b.svg?style=flat-square)](https://cordis.moe/)
 [![Platform](https://img.shields.io/badge/platform-DSH%20Web-ec4899.svg?style=flat-square)](#)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](#-参与贡献与反馈)
@@ -94,14 +94,14 @@ DeepSeek Harness (DSH) 拥有强大且灵活的分层 Skills 扩展机制（涵�
 
 | 运行环境 / 依赖 | 推荐版本 | 说明 |
 | :--- | :--- | :--- |
-| **Node.js** | `>= 18.0.0` | 支持原生 ESM 与 Child Process |
-| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2 < 0.2.0` | 需具备 Cordis 4.x 及 Typert RPC 机制 |
+| **Node.js** | `>= 24.9.0` | 支持原生 ESM 与 Child Process |
+| **DeepSeek Harness (DSH)** | `>= 0.2.2-rc.0 < 0.3.0-0` | 需具备 Cordis 4.x 及 Typert RPC 机制 |
 
 在终端中检查当前 DSH 版本：
 
 ```powershell
 dsh --version
-# 输出示例: 0.1.1-rc.2
+# 输出示例: 0.2.2-rc.5
 ```
 
 ### 🔐 安全边界、依赖与失败行为

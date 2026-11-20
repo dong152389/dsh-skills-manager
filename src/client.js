@@ -1852,7 +1852,7 @@ function apply(ctx) {
     name: 'settings.section',
     id: 'skills-manager',
     order: 25,
-    label: () => h(SkillNavLabel),
+    label: 'Skills',
   }, (props) => h(SkillManagerSection, Object.assign({}, props, { api })))), 'dsh-skills-manager: settings section');
 }
 
